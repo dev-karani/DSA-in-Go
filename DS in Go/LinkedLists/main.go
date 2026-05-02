@@ -38,15 +38,29 @@ func (l *LinkedList) prepend(n *node) {
 	l.length++
 }
 
+func (l LinkedList) printListData() {
+	toPrint := l.head
+	for range l.length{
+		fmt.Printf("%d\n", toPrint.data)
+		toPrint =toPrint.next
+	}
+}
 func main(){
 	mylist := LinkedList {}
 	node1 := &node{data:48}
 	node2 := &node{data:24}
 	node3 := &node{data:16}
+	node4 := &node{data:12}
+	node5 := &node{data:8}
+	node6 := &node{data:5}
+
 
 	mylist.prepend(node1)
 	mylist.prepend(node2)
 	mylist.prepend(node3)
+	mylist.prepend(node4)
+	mylist.prepend(node5)
+	mylist.prepend(node6)
 
-	fmt.Printf("%+v\n", mylist)
+	mylist.printListData()
 }
