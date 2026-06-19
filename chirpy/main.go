@@ -7,50 +7,47 @@ import (
 )
 
 type apiConfig struct {
-	filedserverHits atomic.Int32
+	fileserverHits atomic.Int32
 }
 
-//middleware that records hit on requests
-//wraps each user request path
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler{
-
-	return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
-		//increments fileserverhits
-		cfg.filedserverHits.Add(1)
-		next.ServeHTTP(w,r)
+func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg.fileserverHits.Add(1)
+		next.ServeHTTP(w, r)
 	})
 }
 
-//handler method of type apiconfig that accesses its hits
-func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=itf-8")
+func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(200)
-	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.filedserverHits.Load())))
+	html := fmt.Sprintf(`<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  </body>
+</html>`, cfg.fileserverHits.Load())
+	w.Write([]byte(html))
 }
 
-//handler to reset apiconfig hits
-func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request){
-	cfg.filedserverHits.Store(0)
+func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	cfg.fileserverHits.Store(0)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte("Hits reset to 0"))
 }
 
-
 func main() {
-	//create apiconfig instance
 	apiCfg := &apiConfig{}
-
-	//create app instance
 	mux := http.NewServeMux()
 
-	//strips app path, wraps middleware and handles request
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
 		http.StripPrefix("/app", http.FileServer(http.Dir("."))),
 	))
-	mux.HandleFunc("/metrics", apiCfg.handleMetrics)
-	mux.HandleFunc("/reset", apiCfg.handlerReset)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+
+	mux.HandleFunc("/admin/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("/admin/reset", apiCfg.handlerReset)
+
+	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
