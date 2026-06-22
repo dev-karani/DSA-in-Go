@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"sync/atomic"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
+	"strings"
+	"sync/atomic"
 )
 
 type apiConfig struct {
@@ -51,10 +52,13 @@ type errorResponse struct {
 }
 
 // shape of a success response
-type validResponse struct {
-	Valid bool `json:"valid"`
+// type validResponse struct {
+// 	Valid bool `json:"valid"`
+// }
+//clean response type
+type rs struct {
+	CleanedBody string `json:"cleaned_body"`
 }
-
 // helper: writes a Json error response with the given status code
 func respondWithError(w http.ResponseWriter,code int, msg string) {
 	respondWithJSON(w, code, errorResponse{Error: msg})
@@ -93,12 +97,34 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-
-	respondWithJSON(w, 200, validResponse{Valid:true})
+	cleaned := cleanBody(reqBody.Body)
+	respondWithJSON(w, 200, rs{CleanedBody:cleaned})
 }
 
+// 1. split the whole sentence into individual words (by spaces)
+// 2. go through each word one at a time
+// 3. for each word, check if its LOWERCASE version matches one of the 3 banned words
+// 4. if it matches, replace that word with ****
+//    if it doesn't, leave it untouched (keep original casing!)
+// 5. join all the words back together with spaces
 
+func cleanBody(body string) string{
+	//split words by space
+	splitWords := strings.Split(body, " ")
+	fmt.Println(splitWords)
 
+	badWordSlice := []string{"kerfuffle","sharbert","fornax"}
+	//loop to compare words 
+	for i, word := range splitWords{
+		for _, badWord := range badWordSlice{
+			//compare words
+			if strings.ToLower(word) == badWord {
+				splitWords[i] = "****"
+			}
+		}
+	}
+	return strings.Join(splitWords, " ")
+}
 func main() {
 	apiCfg := &apiConfig{}
 	mux := http.NewServeMux()
