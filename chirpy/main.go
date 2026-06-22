@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+	"encoding/json"
+	"log"
 )
 
 type apiConfig struct {
@@ -36,6 +38,67 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hits reset to 0"))
 }
 
+//  --------- chirp validation -----------
+
+// shape of the incoming request body
+type chirpRequest struct {
+	Body string `json:"body"`
+}
+
+//shape of an error response
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+// shape of a success response
+type validResponse struct {
+	Valid bool `json:"valid"`
+}
+
+// helper: writes a Json error response with the given status code
+func respondWithError(w http.ResponseWriter,code int, msg string) {
+	respondWithJSON(w, code, errorResponse{Error: msg})
+}
+
+//helper: writes any JSON payload with the given status code
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}){
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("error marshalling json %s", err)
+		w.WriteHeader(500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(data)
+}
+
+// 1. accepts a POST request with a JSON body {"body": "..."}
+// 2. decodes the request body into a chirpRequest struct
+// 3. validates the length is <= 140 characters
+// 4. responds with {"valid": true} on success, or {"error": "..."} on failure
+func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+	//decode
+	decoder := json.NewDecoder(r.Body)
+	reqBody := chirpRequest{}
+
+	err := decoder.Decode(&reqBody)
+	if err != nil {
+		log.Printf("error decoding request body: %s", err)
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+
+	if len(reqBody.Body) > 140 {
+		respondWithError(w, 400, "Chirp is too long")
+		return
+	}
+
+	respondWithJSON(w, 200, validResponse{Valid:true})
+}
+
+
+
 func main() {
 	apiCfg := &apiConfig{}
 	mux := http.NewServeMux()
@@ -47,6 +110,7 @@ func main() {
 	mux.HandleFunc("/admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("/admin/reset", apiCfg.handlerReset)
 
+	mux.HandleFunc("POST /api/validate_chirp/", handlerValidateChirp)
 	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
